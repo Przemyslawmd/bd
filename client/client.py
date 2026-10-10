@@ -10,6 +10,10 @@ PORT = 53
 HOST = sys.argv[1]
 COMMAND = sys.argv[2]
 
+SIGNATURE_ONE = "cr49s"
+SIGNATURE_TWO = "32pld"
+KEY = "@DNJI(HSNA872w"
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.connect((HOST, PORT))
-    s.sendall(COMMAND.encode())
+    payload = SIGNATURE_ONE + COMMAND
+    s.sendto(payload, (HOST, PORT))
