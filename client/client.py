@@ -1,11 +1,17 @@
 
+import sys
 import socket
 from itertools import cycle
+
+from server import runServer
 
 
 if len(sys.argv) < 2:
     print("Usage: to less arguments")
     sys.exit()
+
+serverThread = threading.Thread(runServer, True)
+serverThread.start()
 
 PORT = 53
 HOST = sys.argv[1]
