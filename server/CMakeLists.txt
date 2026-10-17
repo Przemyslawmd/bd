@@ -1,5 +1,4 @@
 
-
 set(DISABLE_DBUS ON CACHE BOOL "" FORCE)
 set(DISABLE_RDMA ON CACHE BOOL "" FORCE)
 set(ENABLE_REMOTE OFF CACHE BOOL "" FORCE)
@@ -15,17 +14,16 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(libpcap)
 
-
 add_executable(
-	bd
+	bd_server
 	main.cpp
 )
 
 target_include_directories(
-		bd
-		PRIVATE
-		build/_deps/libpcap-src
+	bd_server
+	PRIVATE
+	build/_deps/libpcap-src
 )
 
-target_link_libraries(bd PRIVATE pcap_static)
+target_link_libraries(bd_server PRIVATE pcap_static)
 
