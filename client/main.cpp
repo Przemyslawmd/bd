@@ -1,10 +1,18 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
+
+#include "server.h"
 
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
+     Server server;
+     std::jthread serverThread([&server]() {
+          server.runServer();
+     });
+
      std::string inputLine;
 
      while (true) {
